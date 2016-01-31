@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+
+cmd = ARGV.shift
+
+known = %w( load dump list web )
+
+if ( known.include? cmd )
+  require "abelard/#{cmd}"
+else
+  $stderr.puts "Unknown command #{cmd}"
+end
