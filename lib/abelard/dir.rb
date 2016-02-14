@@ -1,5 +1,6 @@
 require 'libxml'
 require 'time'
+require 'abelard/history'
 
 AtomNS = "atom:http://www.w3.org/2005/Atom"
 
@@ -38,8 +39,14 @@ class Directory
                  else
                    :unknown
                  end
+
+    @git = History.new(self, path)
   end
 
+  def save
+    @git.commit_posts
+  end
+  
   def read_base_doc
     feed = LibXML::XML::Parser.file("#{@path}/feed.xml").parse
     if feed.root.name == "rss"
@@ -110,4 +117,12 @@ class Directory
     doc
   end
 
+  def sort_entries(repo_entries)
+    by_date = repo_entries.map do |e|
+      { :entry => e,
+        :time => Item.new(LibXML::XML::Parser.file(e.path).parse, e.path ).timestamp }
+    end
+    by_date.sort! { |a,b| a[:time] <=> b[:time] }
+    by_date.map { |hash| hash[:entry] }
+  end
 end

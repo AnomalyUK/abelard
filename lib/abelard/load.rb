@@ -3,6 +3,7 @@ require 'libxml'
 require 'net/http'
 require 'yaml'
 
+require 'abelard/dir.rb'
 require 'abelard/postxml.rb'
 
 CONFIG_FILE = "blogfeeds.yaml"
@@ -160,6 +161,9 @@ def process(parser, destination)
   else
 	puts "don't know what to do with element #{doc.root.name}"
   end
+
+  archive = Directory.new(destination)
+  archive.save
 end
 
 def get_config(key)
@@ -182,7 +186,7 @@ if ARGV[0] == "-f"
   parser = LibXML::XML::Parser.file(feedfile)
   process(parser, dest)
 elsif ARGV[0] == '-n'
-  feedxml = Net::HTTP.get(URI(ARGV[0]))
+  feedxml = Net::HTTP.get(URI(ARGV[1]))
   dest = ARGV[2]
   parser = LibXML::XML::Parser.string(feedxml)
   process(parser, dest)

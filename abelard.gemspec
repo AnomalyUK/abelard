@@ -10,4 +10,7 @@ Gem::Specification.new do |s|
   s.executables   = [ 'abelard' ]
   s.homepage      = 'http://anomalyuk.blogspot.com/'
   s.license       = 'GPL-2.0'
+
+  s.add_runtime_dependency "rugged",
+                           ["~>0.23"]
 end

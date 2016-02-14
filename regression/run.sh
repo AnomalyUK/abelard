@@ -1,8 +1,9 @@
 #!/bin/bash
 
-if [[ ! -f lib/abelard/load.rb ]]
+if [[ ! -f bin/abelard ]]
 then
- echo "Not in correct directory, load missing"
+    echo "Not in correct directory, load missing"
+    exit 1
 fi
 
 function t() {
@@ -11,10 +12,10 @@ function t() {
  mkdir -p temp/$name
  for feed in samplefeeds/${name}*.xml 
  do
-  ruby -I lib lib/abelard/load.rb -f $feed temp/$name
+  ruby -I lib bin/abelard load -f $feed temp/$name
  done
 
- if ruby -I lib lib/abelard/dump.rb temp/$name | diff -q sampleoutput/${name}.xml -
+ if ruby -I lib bin/abelard dump temp/$name | diff -q sampleoutput/${name}.xml -
  then
   echo $name OK
  else
