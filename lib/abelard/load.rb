@@ -180,6 +180,59 @@ def write_raw(data, filename)
   File.open(filename, "w") { |f| f.write(data) }
 end
 
+# Wrap an HTTP session, handle making a request and
+# following any redirects
+class Fetcher
+  def initialize
+    @host = nil
+    @session = nil
+    @user = nil
+    @password = nil
+  end  
+  attr_accessor :user, :password
+  
+  def get(url, max_depth=3)
+    if (url.host != @host)
+      @host = url.host
+      @session = Net::HTTP.new(@host, url.port)
+      @session.use_ssl = (url.scheme == 'https')
+    end
+    request = Net::HTTP::Get.new(url)
+    request.basic_auth(user, password) if user
+
+    msg = "Reading (#{url.to_s})"
+    msg << " as #{user}" if user
+    $stderr.puts(msg)
+    
+    feedxml = @session.request(request)
+    if (feedxml.is_a? Net::HTTPOK)
+      yield feedxml
+    elsif (feedxml.is_a? Net::HTTPMovedPermanently )
+      new_url = feedxml['Location']
+      if ( new_url == url.to_s ) then
+        puts("Confused! redirect to same url #{new_url}")
+      else
+        if ( max_depth == 0 )
+          puts("Too many redirects")
+        else
+          puts("Redirecting to #{new_url}")
+          get(URI(new_url), max_depth-1) { |r| yield r }
+        end
+      end
+    else
+      puts("GET returned #{feedxml.code}")
+        puts(feedxml.body)
+    end
+  end
+end
+
+def ensure_dest(dest)
+  Dir::mkdir(dest) unless File.directory?(dest)
+  unless File.directory?(dest)
+    $stderr.puts "Could not create directory #{dest}"
+  end
+end
+
 if ARGV[0] == "-f"
   feedfile = ARGV[1]
   dest = ARGV[2]
@@ -195,31 +248,19 @@ else
   conf = get_config(key) || die("No config for #{key}")
   dest = conf["dest"] || die("No 'dest' directory defined")
   urls = conf["urls"] || die("No urls defined")
-  host = nil
-  session = nil
+
+  ensure_dest(dest)
+  
+  fetcher = Fetcher.new
+  fetcher.user = conf["user"]
+  fetcher.password = conf["password"]
+  
   urls.each do |urlpath|
     url = URI(urlpath)
-    if (url.host != host)
-      host = url.host
-      session = Net::HTTP.new(host, url.port)
-      session.use_ssl = (url.scheme == 'https')
-    end
-    $stderr.puts("Reading (#{url.to_s})")
-    feedxml = session.get(url)
-    if ( feedxml.code == '200' ) 
-      write_raw(feedxml.body, "#{dest}/raw.xml") if Debug
-      parser = LibXML::XML::Parser.string(feedxml.body)
+    fetcher.get(url) do |response|
+      write_raw(response.body, "#{dest}/raw.xml") if Debug
+      parser = LibXML::XML::Parser.string(response.body)
       process(parser, dest)
-    elsif (feedxml.code == '301' )
-      new_url = feedxml['Location']
-      if ( new_url == urlpath ) then
-        puts("Confused! redirect to same url #{new_url}")
-      else
-        puts("TODO: redirect to #{new_url}")
-      end
-    else
-      puts("GET returned #{feedxml.code}")
-        puts(feedxml.body)
     end
   end
 end
