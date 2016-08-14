@@ -1,2 +1,4 @@
 * command to fetch blog and pick up feed links, add to config
 * command to commit updates to git, ordered file by file
+* follow 301 responses to feed http requests
+* create directory if missing

@@ -201,18 +201,25 @@ else
     url = URI(urlpath)
     if (url.host != host)
       host = url.host
-      session = Net::HTTP.new(host)
+      session = Net::HTTP.new(host, url.port)
+      session.use_ssl = (url.scheme == 'https')
     end
-    $stderr.puts("Reading #{url.to_s}")
+    $stderr.puts("Reading (#{url.to_s})")
     feedxml = session.get(url)
     if ( feedxml.code == '200' ) 
       write_raw(feedxml.body, "#{dest}/raw.xml") if Debug
       parser = LibXML::XML::Parser.string(feedxml.body)
       process(parser, dest)
+    elsif (feedxml.code == '301' )
+      new_url = feedxml['Location']
+      if ( new_url == urlpath ) then
+        puts("Confused! redirect to same url #{new_url}")
+      else
+        puts("TODO: redirect to #{new_url}")
+      end
     else
       puts("GET returned #{feedxml.code}")
-      puts(feedxml)
+        puts(feedxml.body)
     end
   end
 end
-

@@ -47,9 +47,9 @@ Usage
 
 The tools are invoked through the wrapper binary "abelard"
 
-* abelard load -f <feed-file> directory
-* abelard load -n <url> directory
-* abelard load <config-block>
+* abelard load -f \<feed-file\> directory
+* abelard load -n \<url\> directory
+* abelard load \<config-block\>
 
 create files for posts and comments in directory, working from either
 a file, a url, or a the urls configured for a feed

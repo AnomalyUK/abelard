@@ -64,7 +64,7 @@ class History
     sub = @relative_root
 
     commits = 0
-    todo = {}
+    todo = { real: [] }
     @repo.status do |file, data|
       change = classify_file(sub, file)
       todo[change] ||= []
@@ -89,7 +89,6 @@ class History
     to_commit = @archive.sort_entries(todo[:real].map { |f| entry(f) })
     
     to_commit.each do |entry|
-p entry
       file = entry.git_fn
       $stderr.puts "Adding #{file}"
 
