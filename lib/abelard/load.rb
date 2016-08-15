@@ -148,36 +148,82 @@ class Splitter_atom
   end
 end
 
-def process(parser, destination)
-  doc = parser.parse
+class SourceBase
+  def process(parser, destination)
+    doc = parser.parse
 
-  case doc.root.name
-  when "feed"
-    atom = Splitter_atom.new(doc, destination)
-    atom.split_items
-  when "rss"
-    rss = Splitter_rss.new(doc, destination)
-    rss.split_items
-  else
-	puts "don't know what to do with element #{doc.root.name}"
+    case doc.root.name
+    when "feed"
+      atom = Splitter_atom.new(doc, destination)
+      atom.split_items
+    when "rss"
+      rss = Splitter_rss.new(doc, destination)
+      rss.split_items
+    else
+      puts "don't know what to do with element #{doc.root.name}"
+    end
+
+    archive = Directory.new(destination)
+    archive.save
   end
-
-  archive = Directory.new(destination)
-  archive.save
 end
 
-def get_config(key)
-  configuration_file = YAML.load_file(CONFIG_FILE)
-  configuration_file[key]
+class FileSource < SourceBase
+  def initialize(filename, dest)
+    @file = filename
+    @dest = dest
+  end
+
+  def load
+    ensure_dest(@dest)
+    parser = LibXML::XML::Parser.file(@file)
+    process(parser, @dest)
+  end
+end
+    
+class Source < SourceBase
+  def initialize(conf_in)
+    if conf_in.respond_to?(:keys)
+      @conf = conf_in
+    else
+      @conf = get_config(conf_in) || die("No config for #{conf_in}")
+    end
+  end
+
+  def load
+    conf = @conf
+    dest = conf["dest"] || die("No 'dest' directory defined")
+    urls = conf["urls"] || die("No urls defined")
+
+    ensure_dest(dest)
+  
+    fetcher = Fetcher.new
+    fetcher.user = conf["user"]
+    fetcher.password = conf["password"]
+  
+    urls.each do |urlpath|
+      url = URI(urlpath)
+      fetcher.get(url) do |response|
+        write_raw(response.body, "#{dest}/raw.xml") if Debug
+        parser = LibXML::XML::Parser.string(response.body)
+        process(parser, dest)
+      end
+    end
+  end
+
+  def get_config(key)
+    configuration_file = YAML.load_file(CONFIG_FILE)
+    configuration_file[key]
+  end
+
+  def write_raw(data, filename)
+    File.open(filename, "w") { |f| f.write(data) }
+  end
 end
 
 def die(error)
   puts error
   exit 1
-end
-
-def write_raw(data, filename)
-  File.open(filename, "w") { |f| f.write(data) }
 end
 
 # Wrap an HTTP session, handle making a request and
@@ -234,33 +280,12 @@ def ensure_dest(dest)
 end
 
 if ARGV[0] == "-f"
-  feedfile = ARGV[1]
-  dest = ARGV[2]
-  parser = LibXML::XML::Parser.file(feedfile)
-  process(parser, dest)
+  source = FileSource.new(ARGV[1], ARGV[2])
 elsif ARGV[0] == '-n'
-  feedxml = Net::HTTP.get(URI(ARGV[1]))
-  dest = ARGV[2]
-  parser = LibXML::XML::Parser.string(feedxml)
-  process(parser, dest)
+  conf = {"urls" => [ARGV[1]], "dest" => ARGV[2]}
+  source = Source.new(conf)
 else
   key = ARGV[0]
-  conf = get_config(key) || die("No config for #{key}")
-  dest = conf["dest"] || die("No 'dest' directory defined")
-  urls = conf["urls"] || die("No urls defined")
-
-  ensure_dest(dest)
-  
-  fetcher = Fetcher.new
-  fetcher.user = conf["user"]
-  fetcher.password = conf["password"]
-  
-  urls.each do |urlpath|
-    url = URI(urlpath)
-    fetcher.get(url) do |response|
-      write_raw(response.body, "#{dest}/raw.xml") if Debug
-      parser = LibXML::XML::Parser.string(response.body)
-      process(parser, dest)
-    end
-  end
+  source = Source.new(key)
 end
+source.load
