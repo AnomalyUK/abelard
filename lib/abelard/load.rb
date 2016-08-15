@@ -211,11 +211,27 @@ class Source < SourceBase
     end
   end
 
+  def all_configs
+    YAML.load_file(CONFIG_FILE)
+  end
+
   def get_config(key)
-    configuration_file = YAML.load_file(CONFIG_FILE)
+    configuration_file = all_configs
     configuration_file[key]
   end
 
+  def save_config(key, conf)
+    configuration_data = all_configs
+    if configuration_data.has_key? key
+      die("Already have config for #{key}")
+    else
+      configuration_data[key] = conf
+      open(CONFIG_FILE, 'w+') do |conf_file|
+        conf_file.puts(configuration_data.to_yaml)
+      end
+    end
+  end
+  
   def write_raw(data, filename)
     File.open(filename, "w") { |f| f.write(data) }
   end
@@ -282,8 +298,14 @@ end
 if ARGV[0] == "-f"
   source = FileSource.new(ARGV[1], ARGV[2])
 elsif ARGV[0] == '-n'
-  conf = {"urls" => [ARGV[1]], "dest" => ARGV[2]}
+  urls = []
+  while ARGV[0] == '-n'
+    ARGV.shift
+    urls << ARGV.shift
+  end
+  conf = {"urls" => urls, "dest" => ARGV[0]}
   source = Source.new(conf)
+  source.save_config(conf["dest"],conf)
 else
   key = ARGV[0]
   source = Source.new(key)

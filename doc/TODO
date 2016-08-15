@@ -5,3 +5,5 @@
 * handle authenticating to server (basic auth) DONE
 * fetch attachments and media
 * add GUI
+* see if independently maintained repos can merge
+* proper event logging
