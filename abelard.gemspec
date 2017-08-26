@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name          = 'abelard'
-  s.version       = '0.0.1'
-  s.date          = '2016-01-31'
+  s.version       = '0.0.2'
+  s.date          = '2017-08-26'
   s.summary       = 'Abelard blog archiver'
   s.description   = %q{Persist blogs and similar web content as sharable git repositories}
   s.authors       = ["Anomaly UK"]

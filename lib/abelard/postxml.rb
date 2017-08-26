@@ -24,6 +24,7 @@ end
 class Post_id_rss
   attr_reader :idurl
   def initialize(postxml)
+    #XmlUtil::child_content(postxml, "post_id") ||
     @idurl = XmlUtil::child_content(postxml, "guid")
     @raw = postxml.to_s
   end
@@ -32,19 +33,31 @@ class Post_id_rss
     if !idurl
       improvise
     else
-      posturl = /\?p(age_id)?=(\d+)(\.xml)?$/.match(idurl)
-      commenturl = /\?p(age_id)?=(\d+)(\.xml)?#comment-(.*)$/.match(idurl)
-      if posturl
-        postnumber = posturl[2]
-        "post-#{postnumber}.xml"
-      elsif commenturl
-        postnumber = commenturl[2]
+      postnumber = post_match
+      commenturl = /\?p(age_id)?=(\d+)(\.xml)?#comment-(.*)$/.match(idurl) ||
+                   /^(.*)\/(\d{4}\/.*)\/#(comment)-(.*)$/.match(idurl)
+      
+      if commenturl
+        postnumber = commenturl[2].sub(/^\//,'').sub(/\.xml$/,'').gsub('/','-')
         commentnumber = commenturl[4]
         "comment-#{postnumber}-#{commentnumber}.xml"
-      else
-        "post-#{sanitize}.xml"
+      else 
+        "post-#{postnumber}.xml"
       end
     end
+  end
+
+  def post_match
+    posturl = /\?p(age_id)?=(\d+)(\.xml)?$/.match(idurl)
+    if posturl
+      posturl[2]
+    else
+      sanitize
+    end
+  end
+  
+  def as_comment(commentnumber)
+    "comment-#{post_match}-#{commentnumber}.xml"
   end
 
   def sanitize

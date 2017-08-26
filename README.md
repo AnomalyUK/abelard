@@ -22,6 +22,15 @@ handle the export formats produced by Blogger or Wordpress.  Once an
 archive has been created from a site's history that way, the public
 feeds are the easiest way of updating it.
 
+It automatically keeps the history of changes to the blog in a git
+format. The idea is that the archives can be shared and updated
+efficiently using git; if I have a nearly up-to-date abelard archive
+of a blog, I can update it from a current one using git update. That
+isn't working perfectly, the main problem being that the data provided
+by a blog export is not identical to that provided by a feed. In the
+case of wordpress, it isn't even close.
+
+
 Status
 ------
 
@@ -40,7 +49,10 @@ possible to get it to work on Windows, but I haven't tried.
 The information in the export file is all retained in the archive. It
 is possible that that includes some sensitive data; I didn't see any in
 my testing but I don't make any guarantees.  You should check it before
-sharing or publishing your archive.
+sharing or publishing your archive. As of 0.0.2, the Blogger export file
+loader is (wrongly) including draft posts, so if you share your abelard
+archive built from an export file, you're sharing draft and unpublished
+posts as well as published ones (that needs to be fixed)
 
 Usage
 -----
@@ -79,18 +91,20 @@ the same manner.
 Configuration
 -------------
 
-The commands can use a configuration file "blogfeeds.yaml", which for now
-has to be created and edited by hand.
+The commands can use a configuration file "blogfeeds.yaml"
 
 The YAML format file has a block for each blog.
 
-<code>
+```
 shortname:
   dest: directoryname
   urls:
     - somefeedurl
     - someotherfeedurl
-</code>
+```
+
+Using the load command with one or more -n options adds an entry to the
+config file.
 
 There will probably be two urls, one for posts and one for comments, but
 one is OK if there are no comments (or you don't care about comments), and

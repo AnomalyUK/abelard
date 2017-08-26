@@ -1,7 +1,10 @@
+# Manage a git repository representing the feed
+
 require 'rugged'
 require 'pathname'
 
 class History
+  # archive is a Directory, dir is a path to store in git
   def initialize(archive, dir)
     @archive = archive
     if File.directory? dir
@@ -31,6 +34,10 @@ class History
   end
 
   class Entry
+    # dir_fn is the path to the file relative to the feed directory
+    # git_fn is the path to the file relative to the git root
+    # path is the full path
+    
     attr_reader :git_fn, :dir_fn, :path
     def initialize(f, root, repository)
       @git_fn = f
@@ -71,32 +78,45 @@ class History
       todo[change] << file
     end
     if todo[:top]
-      todo[:top].each { |file| repo.index.add file }
+      todo[:top].each do |file|
+        repo.index.add file
+        repo_entry = entry(file)
+        item = Item.new(LibXML::XML::Parser.file(repo_entry.path).parse, repo_entry.path)
 
-      author = {:email => 'abelard@example.org', :time => Time.now, :name => 'abelard'}
-      parents = []
-      parents << repo.head.target unless repo.head_unborn?
-      commit = Rugged::Commit.create(repo,
-                                     :author => author,
-                                     :message => "feed info",
-                                     :commitor => author,
-                                     :parents => parents,
-                                     :tree => repo.index.write_tree(repo),
-                                     :update_ref => "HEAD")
-      commits = commits+1
+        author = {:email => "#{item.author}@example.org",
+                  :time => item.timestamp,
+                  :name => item.author}
+        parents = []
+        parents << repo.head.target unless repo.head_unborn?
+        commit = Rugged::Commit.create(repo,
+                                       :author => author,
+                                       :message => "feed info",
+                                       :committer => author,
+                                       :parents => parents,
+                                       :tree => repo.index.write_tree(repo),
+                                       :update_ref => "HEAD")
+        commits = commits+1
+      end
     end
 
     to_commit = @archive.sort_entries(todo[:real].map { |f| entry(f) })
     
     to_commit.each do |entry|
       file = entry.git_fn
+      repo.index.add file
+      repo_entry = entry(file)
+      item = Item.new(LibXML::XML::Parser.file(repo_entry.path).parse, repo_entry.path)
+
+      author = {:email => "#{item.author}@example.org",
+                :time => item.timestamp,
+                :name => item.author}
+
       $stderr.puts "Adding #{file}"
 
-      repo.index.add file
       commit = Rugged::Commit.create(repo,
                                      :author => author,
                                      :message => "post",
-                                     :commitor => author,
+                                     :committer => author,
                                      :parents => [repo.head.target],
                                      :tree => repo.index.write_tree(repo),
                                      :update_ref => "HEAD")

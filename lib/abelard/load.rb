@@ -12,6 +12,13 @@ Debug = true
 
 
 module Splitter
+  def item(xmlnode, filename)
+    filedoc = LibXML::XML::Document.new()
+    filedoc.root = xmlnode.copy(true)
+    item = Item.new(filedoc, filename)
+  end    
+
+  # deprecated
   def write_item(xmlnode, file)
     filedoc = LibXML::XML::Document.new()
     filedoc.root = xmlnode.copy(true)
@@ -28,9 +35,38 @@ end
 
 class Splitter_rss
   include Splitter
+  NS = ['wp:http://wordpress.org/export/1.2/'];
+
   def initialize(document, destination)
     @doc = document
     @dest = destination
+  end
+
+  def extract_comments(item)
+    # In a wordpress export, the comments are in wp:comment elements
+    basename = Post_id_rss.new(item)
+
+    all = []
+    comment_nodes = item.find("wp:comment", NS)
+    comment_nodes.each do |node|
+      comment_doc = LibXML::XML::Document.new()
+      comment_doc.root = node.remove!
+      approved = comment_doc.find_first("/wp:comment/wp:comment_approved", NS)
+      author_email = comment_doc.find_first("/wp:comment/wp:comment_author_email", NS)
+      author_ip = comment_doc.find_first("/wp:comment/wp:comment_author_IP", NS)
+      id = comment_doc.find_first("/wp:comment/wp:comment_id", NS)
+
+      # delete some sensitive fields
+      author_email.remove! if (author_email)
+      author_ip.remove! if (author_ip)
+      
+      if (approved && (approved.content == '1'))
+        filename = basename.as_comment(id.content)
+
+        all << Item.new(comment_doc, "#{@dest}/#{filename}")
+      end
+    end
+    all
   end
 
   def split_items
@@ -56,7 +92,10 @@ class Splitter_rss
             if ( node.find("wp:attachment_url", "wp:http://wordpress.org/export/1.2/").length > 0 )
               $stderr.puts("skipping attachment")
             else
+              # in a wordpress export file, comments are included inside the post item
+              comments = extract_comments(node)
               save(node)
+              comments.each { |c| c.save }
             end
           else
             copy << node.copy(true)
@@ -77,9 +116,14 @@ class Splitter_rss
     @parent.save("#{@dest}/feed.xml")
   end
 
-  def save(item)
-    filename = Post_id_rss.new(item).to_s
-    write_item(item, "#{@dest}/#{filename}")
+  def save(node)
+    filename = Post_id_rss.new(node).to_s
+    new_item = item(node, "#{@dest}/#{filename}")
+    if new_item.status == :published
+      new_item.save
+    else
+      $stderr.puts("skipping #{filename} as status #{new_item.status}")
+    end
   end
 end    
 
@@ -212,7 +256,7 @@ class Source < SourceBase
   end
 
   def all_configs
-    YAML.load_file(CONFIG_FILE)
+    YAML.load_file(CONFIG_FILE) || {}
   end
 
   def get_config(key)
@@ -295,7 +339,10 @@ def ensure_dest(dest)
   end
 end
 
-if ARGV[0] == "-f"
+if ARGV.empty? 
+  $stderr.puts "Syntax:\nabelard load -f <filename> <destination>\nabelard load {-n <url>} ... <destination>\nabelard load <config>"
+  exit(1)
+elsif ARGV[0] == "-f"
   source = FileSource.new(ARGV[1], ARGV[2])
 elsif ARGV[0] == '-n'
   urls = []

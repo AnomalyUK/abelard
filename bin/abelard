@@ -8,4 +8,5 @@ if ( known.include? cmd )
   require "abelard/#{cmd}"
 else
   $stderr.puts "Unknown command #{cmd}"
+  $stderr.puts "Use one of #{known}"
 end

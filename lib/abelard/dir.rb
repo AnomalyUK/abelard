@@ -2,14 +2,20 @@ require 'libxml'
 require 'time'
 require 'abelard/history'
 
-AtomNS = "atom:http://www.w3.org/2005/Atom"
+# known namespaces for xpath search
+NS = [
+  "atom:http://www.w3.org/2005/Atom",
+  "dc:http://purl.org/dc/elements/1.1/",
+  "app:http://purl.org/atom/app#",
+  "wp:http://wordpress.org/export/1.2/"
+]
 
 class Item
-  attr_accessor :timestamp, :title, :file, :doc
+  attr_accessor :timestamp, :title, :file, :doc, :author, :status
   def initialize(xml, filename)
     @doc = xml
     @file = filename
-    timestamp_node = doc.find_first("/atom:entry/atom:published", AtomNS) ||
+    timestamp_node = doc.find_first("/atom:entry/atom:published", NS) ||
                      doc.find_first("/item/pubDate")
     if timestamp_node
       @timestamp = Time.parse(timestamp_node.content)
@@ -17,13 +23,44 @@ class Item
       @timestamp = Time.new(0)
     end
 
-    title_node = doc.find_first("/atom:entry/atom:title", AtomNS) ||
+    title_node = doc.find_first("/atom:entry/atom:title", NS) ||
                  doc.find_first("/item/title")
     if title_node
       @title = title_node.content
     else
       @title = "Post"
     end
+
+    author_node = doc.find_first("/atom:entry/atom:author/atom:name", NS) ||
+                  doc.find_first("/item/dc:creator", NS)
+    if author_node
+      @author = author_node.content
+    else
+      @author = 'abelard'
+    end
+
+    @status = :published
+    status_node = doc.find_first("/item/wp:status", NS)
+    if status_node
+      $stderr.puts("raw status #{status_node.content}")
+      if status_node.content == "trash"
+        @status = :trash
+      elsif status_node.content == "draft"
+        @status = :draft
+      end
+    end
+
+    draft_node = doc.find_first("/atom:entry/app:control/app:draft", NS)
+    if draft_node
+      if draft_node.content == "yes"
+        @status = :draft
+      end
+    end
+  end
+
+  def save
+    puts("writing #{file}")
+    doc.save(file, :indent => true, :encoding => LibXML::XML::Encoding::UTF_8)
   end
 end
 
@@ -63,6 +100,7 @@ class Directory
     @base_doc
   end
 
+  # iterates the Item objects for the feed, in order
   def each
     by_date = {}
     each_unsorted do |post,filename|
@@ -74,7 +112,7 @@ class Directory
   
   def info
     inf = {}
-    el = base_doc.find_first("/atom:feed/atom:title", AtomNS) ||
+    el = base_doc.find_first("/atom:feed/atom:title", NS) ||
          base_doc.find_first("/rss/channel/title")
     inf["title"] = el.content
     inf
